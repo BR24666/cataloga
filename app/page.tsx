@@ -16,41 +16,52 @@ export default function Home() {
   const [consensus, setConsensus] = useState<ConsensusAnalysis | null>(null)
 
   // Buscar dados do Forex
-  const { data: forexData, isLoading: isLoadingForex, refetch: refetchForex } = useQuery({
+  const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
     queryKey: ['forex', selectedPair],
     queryFn: async () => {
       const response = await fetch(`/api/forex?pair=${selectedPair}`)
-      if (!response.ok) throw new Error('Erro ao buscar dados')
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Erro ao buscar dados')
+      }
       return response.json()
     },
     refetchInterval: 60000, // Atualizar a cada minuto
+    retry: 2,
   })
 
-  // Buscar previsões e consenso
+  // Função para buscar previsões e consenso
+  const fetchPredictions = async (candleId: string) => {
+    // Buscar previsões
+    const { data: preds } = await supabase
+      .from('strategy_predictions')
+      .select('*')
+      .eq('candle_id', candleId)
+      .order('confidence', { ascending: false })
+
+    if (preds) {
+      console.log('Previsões encontradas:', preds.length)
+      setPredictions(preds)
+    }
+
+    // Buscar consenso
+    const { data: cons } = await supabase
+      .from('consensus_analysis')
+      .select('*')
+      .eq('candle_id', candleId)
+      .single()
+
+    if (cons) {
+      console.log('Consenso encontrado:', cons)
+      setConsensus(cons)
+    }
+  }
+
+  // Buscar previsões e consenso quando a vela mudar
   useEffect(() => {
     if (!currentCandle) return
 
-    const fetchPredictions = async () => {
-      // Buscar previsões
-      const { data: preds } = await supabase
-        .from('strategy_predictions')
-        .select('*')
-        .eq('candle_id', currentCandle.id)
-        .order('confidence', { ascending: false })
-
-      if (preds) setPredictions(preds)
-
-      // Buscar consenso
-      const { data: cons } = await supabase
-        .from('consensus_analysis')
-        .select('*')
-        .eq('candle_id', currentCandle.id)
-        .single()
-
-      if (cons) setConsensus(cons)
-    }
-
-    fetchPredictions()
+    fetchPredictions(currentCandle.id)
 
     // Escutar novas previsões em tempo real
     const predictionsChannel = supabase
@@ -64,7 +75,9 @@ export default function Home() {
           filter: `candle_id=eq.${currentCandle.id}`,
         },
         () => {
-          fetchPredictions()
+          if (currentCandle) {
+            fetchPredictions(currentCandle.id)
+          }
         }
       )
       .subscribe()
@@ -100,6 +113,7 @@ export default function Home() {
       // Executar análise automaticamente quando uma nova vela chegar
       const executeAnalysis = async () => {
         try {
+          console.log('Executando análise para vela:', newCandle.id)
           const response = await fetch('/api/analyze', {
             method: 'POST',
             headers: {
@@ -111,14 +125,28 @@ export default function Home() {
             }),
           })
 
+          const result = await response.json()
+          
           if (response.ok) {
-            // Análise executada com sucesso
-            // As previsões serão atualizadas via realtime
+            console.log('Análise executada com sucesso:', result)
+            // Forçar atualização das previsões após 1 segundo
+            setTimeout(() => {
+              fetchPredictions(newCandle.id)
+            }, 1000)
+          } else {
+            console.error('Erro na análise:', result.error)
+            // Mesmo com erro, tentar buscar previsões existentes
+            fetchPredictions(newCandle.id)
           }
         } catch (error) {
           console.error('Erro ao executar análise:', error)
+          // Mesmo com erro, tentar buscar previsões existentes
+          fetchPredictions(newCandle.id)
         }
       }
+
+      // Buscar previsões existentes primeiro
+      fetchPredictions(newCandle.id)
 
       // Verificar se já existe consenso para esta vela
       supabase
@@ -126,10 +154,16 @@ export default function Home() {
         .select('*')
         .eq('candle_id', newCandle.id)
         .single()
-        .then(({ data }) => {
+        .then(({ data, error }) => {
+          if (error && error.code !== 'PGRST116') {
+            console.error('Erro ao verificar consenso:', error)
+          }
           // Se não existe consenso, executar análise
           if (!data) {
+            console.log('Consenso não encontrado, executando análise...')
             executeAnalysis()
+          } else {
+            console.log('Consenso já existe, pulando análise')
           }
         })
     }
@@ -164,6 +198,22 @@ export default function Home() {
             onPairChange={setSelectedPair}
           />
         </div>
+
+        {/* Mensagem de Erro */}
+        {forexError && (
+          <div className="card bg-red-500/10 border-red-500/50">
+            <p className="text-red-400 font-semibold">Erro ao buscar dados</p>
+            <p className="text-red-300 text-sm mt-1">
+              {forexError instanceof Error ? forexError.message : 'Erro desconhecido'}
+            </p>
+            <button
+              onClick={() => refetchForex()}
+              className="mt-2 px-4 py-2 bg-red-500 hover:bg-red-600 rounded text-white text-sm"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
 
         {/* Grid Principal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

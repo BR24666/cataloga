@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar últimas 20 velas para análise
-    const { data: historicalCandles } = await supabase
+    const { data: historicalCandles, error: historyError } = await supabase
       .from('forex_candles')
       .select('*')
       .eq('pair', pair)
@@ -37,15 +37,27 @@ export async function POST(request: NextRequest) {
       .order('timestamp', { ascending: false })
       .limit(20)
 
-    if (!historicalCandles || historicalCandles.length < 3) {
+    if (historyError) {
+      console.error('Erro ao buscar histórico:', historyError)
+    }
+
+    // Se não houver dados históricos suficientes, usar apenas a vela atual
+    // Isso permite que a análise funcione mesmo com poucos dados
+    if (!historicalCandles || historicalCandles.length < 1) {
       return NextResponse.json(
         { error: 'Dados históricos insuficientes' },
         { status: 400 }
       )
     }
 
-    // Reverter para ordem cronológica
-    const candles = historicalCandles.reverse() as ForexCandle[]
+    // Se tiver menos de 3 velas, usar apenas as disponíveis
+    // Algumas estratégias podem não funcionar, mas outras sim
+    const availableCandles = Math.min(historicalCandles.length, 20)
+
+    // Reverter para ordem cronológica e usar apenas as disponíveis
+    const candles = historicalCandles.slice(0, availableCandles).reverse() as ForexCandle[]
+    
+    console.log(`Analisando com ${candles.length} velas históricas`)
 
     // Executar análise de cada estratégia
     const predictions = []
@@ -53,9 +65,10 @@ export async function POST(request: NextRequest) {
     let redCount = 0
 
     for (const strategy of STRATEGIES) {
-      const result = strategy.rules(candles)
+      try {
+        const result = strategy.rules(candles)
 
-      if (result.prediction) {
+        if (result.prediction) {
         // Salvar previsão no banco
         const { data: prediction, error } = await supabase
           .from('strategy_predictions')
@@ -82,6 +95,9 @@ export async function POST(request: NextRequest) {
             redCount++
           }
         }
+      } catch (strategyError) {
+        console.error(`Erro na estratégia ${strategy.name}:`, strategyError)
+        // Continua com as outras estratégias mesmo se uma falhar
       }
     }
 
@@ -120,6 +136,8 @@ export async function POST(request: NextRequest) {
     if (consensusError) {
       console.error('Erro ao salvar consenso:', consensusError)
     }
+
+    console.log(`Análise concluída: ${predictions.length} previsões, ${greenCount} verdes, ${redCount} vermelhas`)
 
     return NextResponse.json({
       success: true,
