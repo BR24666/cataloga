@@ -159,12 +159,14 @@ export default function Home() {
 
       // Sempre executar análise quando uma nova vela chegar
       // Verificar se já existe consenso primeiro (para evitar análise duplicada)
-      supabase
-        .from('consensus_analysis')
-        .select('*')
-        .eq('candle_id', newCandle.id)
-        .single()
-        .then(({ data, error }) => {
+      const checkAndExecuteAnalysis = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('consensus_analysis')
+            .select('*')
+            .eq('candle_id', newCandle.id)
+            .single()
+
           if (error && error.code !== 'PGRST116') {
             console.error('Erro ao verificar consenso:', error)
           }
@@ -172,7 +174,7 @@ export default function Home() {
           // Se não existe consenso OU se não tem previsões suficientes, executar análise
           if (!data || (data.total_strategies < 5)) {
             console.log('Executando análise para vela:', newCandle.id)
-            executeAnalysis()
+            await executeAnalysis()
           } else {
             console.log('Consenso já existe com', data.total_strategies, 'estratégias')
             // Mesmo assim, buscar previsões para garantir que estão atualizadas
@@ -180,12 +182,14 @@ export default function Home() {
               fetchPredictions(newCandle.id)
             }, 500)
           }
-        })
-        .catch((err) => {
+        } catch (err) {
           console.error('Erro ao verificar consenso, executando análise mesmo assim:', err)
           // Em caso de erro, executar análise
-          executeAnalysis()
-        })
+          await executeAnalysis()
+        }
+      }
+
+      checkAndExecuteAnalysis()
     }
   }, [forexData])
 
