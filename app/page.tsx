@@ -315,6 +315,8 @@ export default function Home() {
             <p className="text-red-300 text-sm mt-1">
               {forexError instanceof Error ? forexError.message : 'Erro desconhecido'}
             </p>
+            
+            {/* Mensagem específica para erro 429 */}
             {forexError instanceof Error && forexError.message.includes('429') && (
               <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
                 <p className="text-yellow-300 text-sm font-semibold mb-2">
@@ -327,14 +329,41 @@ export default function Home() {
                 </p>
               </div>
             )}
+
+            {/* Mensagem específica para erro de banco */}
+            {forexError instanceof Error && (
+              forexError.message.includes('banco de dados') || 
+              forexError.message.includes('Supabase') ||
+              forexError.message.includes('PERMISSION_DENIED') ||
+              forexError.message.includes('TABLE_NOT_FOUND')
+            ) && (
+              <div className="mt-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                <p className="text-orange-300 text-sm font-semibold mb-2">
+                  🔧 Problema com Banco de Dados
+                </p>
+                <p className="text-orange-200 text-xs mb-2">
+                  O erro pode ser causado por:
+                </p>
+                <ul className="text-orange-200 text-xs list-disc list-inside space-y-1 ml-2">
+                  <li>Políticas RLS (Row Level Security) bloqueando inserções</li>
+                  <li>Tabela não existe ou nome incorreto</li>
+                  <li>Variáveis de ambiente não configuradas</li>
+                  <li>Permissões insuficientes na chave anon do Supabase</li>
+                </ul>
+                <p className="text-orange-200 text-xs mt-2">
+                  <strong>Como resolver:</strong> Verifique as políticas RLS no Supabase e certifique-se de que a tabela <code className="bg-orange-900/30 px-1 rounded">forex_candles</code> permite INSERT para usuários anônimos.
+                </p>
+              </div>
+            )}
+
             <div className="mt-3 space-y-2 text-xs text-red-200">
               <p><strong>Possíveis causas:</strong></p>
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li>API Alpha Vantage com limite de requisições atingido (429)</li>
+                <li>Erro ao salvar vela no banco de dados (verifique RLS)</li>
                 <li>Mercado fechado (Forex funciona 24h, mas pode haver problemas na API)</li>
                 <li>Problema de conexão com a internet</li>
                 <li>Chave da API não configurada corretamente</li>
-                <li>Erro ao salvar vela no banco de dados</li>
               </ul>
             </div>
             <button

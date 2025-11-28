@@ -120,13 +120,43 @@ export async function GET(request: NextRequest) {
       pair: candle.pair,
       timestamp: candle.timestamp,
       color: candle.color,
+      values: {
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+      },
     })
+
+    // Verificar se as variáveis de ambiente estão configuradas
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      console.error('❌ Variáveis de ambiente do Supabase não configuradas')
+      return NextResponse.json(
+        { 
+          error: 'Configuração do banco de dados não encontrada. Verifique as variáveis de ambiente.',
+          code: 'MISSING_ENV',
+        },
+        { status: 500 }
+      )
+    }
+
+    // Converter timestamp para formato ISO se necessário
+    let timestampValue = candle.timestamp
+    try {
+      // Tentar converter para ISO se não estiver no formato correto
+      const date = new Date(candle.timestamp)
+      if (!isNaN(date.getTime())) {
+        timestampValue = date.toISOString()
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao converter timestamp:', e)
+    }
 
     const { data: savedCandle, error: dbError } = await supabase
       .from('forex_candles')
       .upsert({
         pair: candle.pair,
-        timestamp: candle.timestamp,
+        timestamp: timestampValue,
         open: candle.open,
         high: candle.high,
         low: candle.low,
@@ -139,12 +169,37 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (dbError) {
-      console.error('❌ Erro ao salvar vela no Supabase:', dbError)
-      // Não retornar vela temporária - ela não pode ser usada para análise
+      console.error('❌ Erro ao salvar vela no Supabase:', {
+        message: dbError.message,
+        details: dbError.details,
+        hint: dbError.hint,
+        code: dbError.code,
+      })
+      
+      // Mensagem mais específica baseada no código do erro
+      let errorMessage = 'Erro ao salvar vela no banco de dados.'
+      let errorCode = 'DB_ERROR'
+      
+      if (dbError.code === '23505') {
+        errorMessage = 'Vela já existe no banco (conflito de chave única).'
+        errorCode = 'DUPLICATE_KEY'
+      } else if (dbError.code === '23503') {
+        errorMessage = 'Erro de integridade referencial. Verifique as configurações do banco.'
+        errorCode = 'FOREIGN_KEY_VIOLATION'
+      } else if (dbError.code === '42501') {
+        errorMessage = 'Permissão negada. Verifique as políticas RLS (Row Level Security) do Supabase.'
+        errorCode = 'PERMISSION_DENIED'
+      } else if (dbError.message?.includes('relation') || dbError.message?.includes('does not exist')) {
+        errorMessage = 'Tabela não encontrada. Verifique se a tabela forex_candles existe no banco.'
+        errorCode = 'TABLE_NOT_FOUND'
+      }
+      
       return NextResponse.json(
         { 
-          error: 'Erro ao salvar vela no banco de dados. A análise não pode ser executada.',
+          error: errorMessage,
+          code: errorCode,
           details: dbError.message,
+          hint: dbError.hint || 'Verifique as configurações do Supabase e as políticas RLS.',
         },
         { status: 500 }
       )
