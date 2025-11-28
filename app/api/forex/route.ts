@@ -61,20 +61,32 @@ export async function GET(request: NextRequest) {
 
     const data = response.data
 
+    console.log('📡 Resposta Alpha Vantage:', {
+      hasError: !!data['Error Message'],
+      hasNote: !!data['Note'],
+      hasTimeSeries: !!data['Time Series FX (1min)'],
+      keys: Object.keys(data).slice(0, 5),
+    })
+
     if (data['Error Message'] || data['Note']) {
+      const errorMsg = data['Error Message'] || data['Note'] || 'Limite de requisições atingido'
+      console.error('❌ Erro Alpha Vantage:', errorMsg)
       return NextResponse.json(
-        { error: data['Error Message'] || 'Limite de requisições atingido' },
+        { error: errorMsg },
         { status: 429 }
       )
     }
 
     const timeSeries = data['Time Series FX (1min)']
     if (!timeSeries) {
+      console.error('❌ Time Series não encontrado. Dados recebidos:', Object.keys(data))
       return NextResponse.json(
-        { error: 'Dados não disponíveis' },
+        { error: 'Dados não disponíveis da API. Verifique se o mercado está aberto.' },
         { status: 404 }
       )
     }
+
+    console.log('✅ Time Series encontrado com', Object.keys(timeSeries).length, 'velas')
 
     // Pegar a vela mais recente
     const timestamps = Object.keys(timeSeries).sort().reverse()
@@ -92,6 +104,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Salvar no Supabase
+    console.log('💾 Salvando vela no Supabase:', {
+      pair: candle.pair,
+      timestamp: candle.timestamp,
+      color: candle.color,
+    })
+
     const { data: savedCandle, error: dbError } = await supabase
       .from('forex_candles')
       .upsert({
@@ -109,8 +127,16 @@ export async function GET(request: NextRequest) {
       .single()
 
     if (dbError) {
-      console.error('Erro ao salvar vela:', dbError)
+      console.error('❌ Erro ao salvar vela no Supabase:', dbError)
+      // Retornar a vela mesmo se não salvou (para não quebrar o frontend)
+      return NextResponse.json({
+        candle: { ...candle, id: `temp-${Date.now()}` },
+        historical: [],
+        warning: 'Vela não foi salva no banco, mas está disponível para análise',
+      })
     }
+
+    console.log('✅ Vela salva com sucesso. ID:', savedCandle?.id)
 
     return NextResponse.json({
       candle: savedCandle || candle,

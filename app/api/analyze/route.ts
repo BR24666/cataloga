@@ -44,14 +44,23 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao buscar histórico:', historyError)
     }
 
-    // Se não houver dados históricos suficientes, usar apenas a vela atual
-    // Isso permite que a análise funcione mesmo com poucos dados
+    // Se não houver dados históricos suficientes, tentar usar apenas a vela atual
+    // Mas precisamos de pelo menos 1 vela para análise básica
     if (!historicalCandles || historicalCandles.length < 1) {
       console.error('❌ Dados históricos insuficientes - Total:', historicalCandles?.length || 0)
+      console.log('💡 Dica: Aguarde alguns minutos para que mais velas sejam coletadas')
       return NextResponse.json(
-        { error: 'Dados históricos insuficientes. Aguarde mais velas serem coletadas.' },
+        { 
+          error: 'Dados históricos insuficientes. Aguarde mais velas serem coletadas.',
+          hint: 'A análise precisa de pelo menos 1 vela histórica. Aguarde 1-2 minutos.',
+        },
         { status: 400 }
       )
+    }
+
+    // Se tiver apenas 1 vela, algumas estratégias não funcionarão, mas outras sim
+    if (historicalCandles.length === 1) {
+      console.warn('⚠️ Apenas 1 vela disponível. Algumas estratégias podem não funcionar.')
     }
 
     console.log('✅ Dados históricos encontrados:', historicalCandles.length, 'velas')

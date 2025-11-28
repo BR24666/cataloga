@@ -30,7 +30,16 @@ export default function CandleDisplay({ candle, isLoading }: CandleDisplayProps)
   if (!candle) {
     return (
       <div className="card">
-        <p className="text-gray-400">Nenhuma vela disponível</p>
+        <div className="space-y-2">
+          <p className="text-gray-400">Nenhuma vela disponível</p>
+          <p className="text-xs text-gray-500">
+            Aguardando dados da API Alpha Vantage...
+          </p>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <span>Conectando com a API...</span>
+          </div>
+        </div>
       </div>
     )
   }

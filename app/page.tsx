@@ -21,15 +21,26 @@ export default function Home() {
   const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
     queryKey: ['forex', selectedPair],
     queryFn: async () => {
+      console.log('🔄 Buscando dados do Forex para:', selectedPair)
       const response = await fetch(`/api/forex?pair=${selectedPair}`)
+      const responseData = await response.json().catch(() => ({}))
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Erro ao buscar dados')
+        console.error('❌ Erro na API Forex:', responseData.error || 'Erro desconhecido')
+        throw new Error(responseData.error || 'Erro ao buscar dados')
       }
-      return response.json()
+      
+      console.log('✅ Dados recebidos:', {
+        hasCandle: !!responseData.candle,
+        candleId: responseData.candle?.id,
+        historicalCount: responseData.historical?.length || 0,
+      })
+      
+      return responseData
     },
     refetchInterval: 60000, // Atualizar a cada minuto
     retry: 2,
+    retryDelay: 5000, // Aguardar 5 segundos entre tentativas
   })
 
   // Função para buscar previsões e consenso
@@ -285,15 +296,24 @@ export default function Home() {
         {/* Mensagem de Erro */}
         {forexError && (
           <div className="card bg-red-500/10 border-red-500/50">
-            <p className="text-red-400 font-semibold">Erro ao buscar dados</p>
+            <p className="text-red-400 font-semibold">⚠️ Erro ao buscar dados</p>
             <p className="text-red-300 text-sm mt-1">
               {forexError instanceof Error ? forexError.message : 'Erro desconhecido'}
             </p>
+            <div className="mt-3 space-y-2 text-xs text-red-200">
+              <p><strong>Possíveis causas:</strong></p>
+              <ul className="list-disc list-inside space-y-1 ml-2">
+                <li>API Alpha Vantage com limite de requisições atingido</li>
+                <li>Mercado fechado (Forex funciona 24h, mas pode haver problemas na API)</li>
+                <li>Problema de conexão com a internet</li>
+                <li>Chave da API não configurada corretamente</li>
+              </ul>
+            </div>
             <button
               onClick={() => refetchForex()}
-              className="mt-2 px-4 py-2 bg-red-500 hover:bg-red-600 rounded text-white text-sm"
+              className="mt-4 px-4 py-2 bg-red-500 hover:bg-red-600 rounded text-white text-sm transition-colors"
             >
-              Tentar novamente
+              🔄 Tentar novamente
             </button>
           </div>
         )}
