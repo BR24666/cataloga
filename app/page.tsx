@@ -39,8 +39,15 @@ export default function Home() {
       return responseData
     },
     refetchInterval: 60000, // Atualizar a cada minuto
-    retry: 2,
-    retryDelay: 5000, // Aguardar 5 segundos entre tentativas
+    retry: (failureCount, error: any) => {
+      // Não tentar novamente se for erro 429 (limite de requisições)
+      if (error?.message?.includes('429') || error?.message?.includes('RATE_LIMIT')) {
+        return false
+      }
+      // Tentar até 2 vezes para outros erros
+      return failureCount < 2
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Backoff exponencial até 30s
   })
 
   // Função para buscar previsões e consenso
@@ -128,13 +135,19 @@ export default function Home() {
 
     const newCandle = forexData.candle as ForexCandle
     
+    // Ignorar velas temporárias (não podem ser analisadas)
+    if (newCandle.id && newCandle.id.toString().startsWith('temp-')) {
+      console.warn('⚠️ Ignorando vela temporária - não pode ser analisada:', newCandle.id)
+      return
+    }
+    
     // Evitar atualizar se for a mesma vela (verificar antes de setar)
     if (currentCandle?.id === newCandle.id && lastAnalyzedCandleId.current === newCandle.id) {
       return
     }
 
-    // Atualizar vela apenas se for diferente
-    if (currentCandle?.id !== newCandle.id) {
+    // Atualizar vela apenas se for diferente e tiver ID válido
+    if (currentCandle?.id !== newCandle.id && newCandle.id) {
       setCurrentCandle(newCandle)
     }
 
@@ -181,13 +194,15 @@ export default function Home() {
       }
     }
 
-    // Buscar previsões existentes primeiro
-    fetchPredictions(newCandle.id)
-
     // Evitar análise duplicada para a mesma vela
     if (lastAnalyzedCandleId.current === newCandle.id) {
       console.log('Vela já analisada, pulando...')
       return
+    }
+
+    // Buscar previsões existentes primeiro (só se tiver ID válido)
+    if (newCandle.id) {
+      fetchPredictions(newCandle.id)
     }
 
     // Sempre executar análise quando uma nova vela chegar
@@ -300,13 +315,26 @@ export default function Home() {
             <p className="text-red-300 text-sm mt-1">
               {forexError instanceof Error ? forexError.message : 'Erro desconhecido'}
             </p>
+            {forexError instanceof Error && forexError.message.includes('429') && (
+              <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                <p className="text-yellow-300 text-sm font-semibold mb-2">
+                  ⏱️ Limite de Requisições Atingido
+                </p>
+                <p className="text-yellow-200 text-xs">
+                  A API Alpha Vantage tem um limite de requisições por minuto. 
+                  Aguarde 1-2 minutos antes de tentar novamente. 
+                  A análise não pode ser executada enquanto não houver dados salvos no banco.
+                </p>
+              </div>
+            )}
             <div className="mt-3 space-y-2 text-xs text-red-200">
               <p><strong>Possíveis causas:</strong></p>
               <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>API Alpha Vantage com limite de requisições atingido</li>
+                <li>API Alpha Vantage com limite de requisições atingido (429)</li>
                 <li>Mercado fechado (Forex funciona 24h, mas pode haver problemas na API)</li>
                 <li>Problema de conexão com a internet</li>
                 <li>Chave da API não configurada corretamente</li>
+                <li>Erro ao salvar vela no banco de dados</li>
               </ul>
             </div>
             <button

@@ -71,6 +71,18 @@ export async function GET(request: NextRequest) {
     if (data['Error Message'] || data['Note']) {
       const errorMsg = data['Error Message'] || data['Note'] || 'Limite de requisições atingido'
       console.error('❌ Erro Alpha Vantage:', errorMsg)
+      
+      // Se for limite de requisições, retornar erro específico
+      if (errorMsg.includes('API call frequency') || errorMsg.includes('Thank you for using Alpha Vantage')) {
+        return NextResponse.json(
+          { 
+            error: 'Limite de requisições da API Alpha Vantage atingido. Aguarde alguns minutos antes de tentar novamente.',
+            code: 'RATE_LIMIT',
+          },
+          { status: 429 }
+        )
+      }
+      
       return NextResponse.json(
         { error: errorMsg },
         { status: 429 }
@@ -128,12 +140,14 @@ export async function GET(request: NextRequest) {
 
     if (dbError) {
       console.error('❌ Erro ao salvar vela no Supabase:', dbError)
-      // Retornar a vela mesmo se não salvou (para não quebrar o frontend)
-      return NextResponse.json({
-        candle: { ...candle, id: `temp-${Date.now()}` },
-        historical: [],
-        warning: 'Vela não foi salva no banco, mas está disponível para análise',
-      })
+      // Não retornar vela temporária - ela não pode ser usada para análise
+      return NextResponse.json(
+        { 
+          error: 'Erro ao salvar vela no banco de dados. A análise não pode ser executada.',
+          details: dbError.message,
+        },
+        { status: 500 }
+      )
     }
 
     console.log('✅ Vela salva com sucesso. ID:', savedCandle?.id)
@@ -150,9 +164,24 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('Erro na API Forex:', error)
+    
+    // Verificar se é erro 429 do axios
+    if (error.response?.status === 429 || error.message?.includes('429')) {
+      return NextResponse.json(
+        { 
+          error: 'Limite de requisições da API Alpha Vantage atingido. Aguarde alguns minutos.',
+          code: 'RATE_LIMIT',
+        },
+        { status: 429 }
+      )
+    }
+    
     return NextResponse.json(
-      { error: error.message || 'Erro ao buscar dados' },
-      { status: 500 }
+      { 
+        error: error.message || 'Erro ao buscar dados',
+        details: error.response?.data || error.stack,
+      },
+      { status: error.response?.status || 500 }
     )
   }
 }
