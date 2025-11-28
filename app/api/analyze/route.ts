@@ -69,30 +69,31 @@ export async function POST(request: NextRequest) {
         const result = strategy.rules(candles)
 
         if (result.prediction) {
-        // Salvar previsão no banco
-        const { data: prediction, error } = await supabase
-          .from('strategy_predictions')
-          .upsert({
-            candle_id: candleId,
-            pair,
-            timestamp: currentCandle.timestamp,
-            strategy_name: strategy.name,
-            prediction: result.prediction,
-            confidence: result.confidence,
-            reasoning: result.reasoning,
-          }, {
-            onConflict: 'candle_id,strategy_name',
-          })
-          .select()
-          .single()
+          // Salvar previsão no banco
+          const { data: prediction, error } = await supabase
+            .from('strategy_predictions')
+            .upsert({
+              candle_id: candleId,
+              pair,
+              timestamp: currentCandle.timestamp,
+              strategy_name: strategy.name,
+              prediction: result.prediction,
+              confidence: result.confidence,
+              reasoning: result.reasoning,
+            }, {
+              onConflict: 'candle_id,strategy_name',
+            })
+            .select()
+            .single()
 
-        if (!error && prediction) {
-          predictions.push(prediction)
-          
-          if (result.prediction === 'green') {
-            greenCount++
-          } else {
-            redCount++
+          if (!error && prediction) {
+            predictions.push(prediction)
+            
+            if (result.prediction === 'green') {
+              greenCount++
+            } else {
+              redCount++
+            }
           }
         }
       } catch (strategyError) {
