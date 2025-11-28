@@ -67,16 +67,21 @@ export default function Home() {
         setPredictions(preds)
       }
 
-      // Buscar consenso
-      const { data: cons } = await supabase
+      // Buscar consenso (usar maybeSingle para evitar erro 406 quando não há dados)
+      const { data: cons, error: consError } = await supabase
         .from('consensus_analysis')
         .select('*')
         .eq('candle_id', candleId)
-        .single()
+        .maybeSingle()
 
-      if (cons) {
+      if (consError && consError.code !== 'PGRST116') {
+        console.error('Erro ao buscar consenso:', consError)
+      } else if (cons) {
         console.log('Consenso encontrado:', cons)
         setConsensus(cons)
+      } else {
+        // Não há consenso ainda, limpar estado
+        setConsensus(null)
       }
     } catch (error) {
       console.error('Erro ao buscar previsões:', error)
@@ -118,7 +123,11 @@ export default function Home() {
           filter: `candle_id=eq.${candleId}`,
         },
         (payload) => {
-          setConsensus(payload.new as ConsensusAnalysis)
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            setConsensus(payload.new as ConsensusAnalysis)
+          } else if (payload.eventType === 'DELETE') {
+            setConsensus(null)
+          }
         }
       )
       .subscribe()
@@ -213,7 +222,7 @@ export default function Home() {
           .from('consensus_analysis')
           .select('*')
           .eq('candle_id', newCandle.id)
-          .single()
+          .maybeSingle()
 
         if (error && error.code !== 'PGRST116') {
           console.error('Erro ao verificar consenso:', error)
