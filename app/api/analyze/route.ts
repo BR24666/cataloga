@@ -7,7 +7,10 @@ export async function POST(request: NextRequest) {
   try {
     const { candleId, pair } = await request.json()
 
+    console.log('📊 Iniciando análise - CandleId:', candleId, 'Pair:', pair)
+
     if (!candleId || !pair) {
+      console.error('❌ Parâmetros faltando - candleId:', candleId, 'pair:', pair)
       return NextResponse.json(
         { error: 'candleId e pair são obrigatórios' },
         { status: 400 }
@@ -44,11 +47,14 @@ export async function POST(request: NextRequest) {
     // Se não houver dados históricos suficientes, usar apenas a vela atual
     // Isso permite que a análise funcione mesmo com poucos dados
     if (!historicalCandles || historicalCandles.length < 1) {
+      console.error('❌ Dados históricos insuficientes - Total:', historicalCandles?.length || 0)
       return NextResponse.json(
-        { error: 'Dados históricos insuficientes' },
+        { error: 'Dados históricos insuficientes. Aguarde mais velas serem coletadas.' },
         { status: 400 }
       )
     }
+
+    console.log('✅ Dados históricos encontrados:', historicalCandles.length, 'velas')
 
     // Se tiver menos de 3 velas, usar apenas as disponíveis
     // Algumas estratégias podem não funcionar, mas outras sim
@@ -138,7 +144,9 @@ export async function POST(request: NextRequest) {
       console.error('Erro ao salvar consenso:', consensusError)
     }
 
-    console.log(`Análise concluída: ${predictions.length} previsões, ${greenCount} verdes, ${redCount} vermelhas`)
+    console.log(`✅ Análise concluída: ${predictions.length} previsões geradas`)
+    console.log(`   🟩 Verdes: ${greenCount} | 🟥 Vermelhas: ${redCount}`)
+    console.log(`   📊 Consenso: ${consensusPrediction} (${consensusConfidence}% confiança)`)
 
     return NextResponse.json({
       success: true,

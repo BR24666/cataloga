@@ -41,7 +41,13 @@ export default function ConsensusPanel({ consensus, isLoading }: ConsensusPanelP
           <Target className="w-5 h-5 text-blue-400" />
           <h3 className="text-lg font-semibold">🎯 PREVISÃO PRÓXIMA VELA</h3>
         </div>
-        <p className="text-gray-400">Aguardando análise das estratégias...</p>
+        <div className="space-y-2">
+          <p className="text-gray-400">Aguardando análise das estratégias...</p>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+            <span>Executando análise automática...</span>
+          </div>
+        </div>
       </div>
     )
   }

@@ -14,6 +14,7 @@ export default function Home() {
   const [currentCandle, setCurrentCandle] = useState<ForexCandle | null>(null)
   const [predictions, setPredictions] = useState<StrategyPrediction[]>([])
   const [consensus, setConsensus] = useState<ConsensusAnalysis | null>(null)
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   // Buscar dados do Forex
   const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
@@ -112,8 +113,14 @@ export default function Home() {
 
       // Executar análise automaticamente quando uma nova vela chegar
       const executeAnalysis = async () => {
+        if (isAnalyzing) {
+          console.log('Análise já em andamento, aguardando...')
+          return
+        }
+
+        setIsAnalyzing(true)
         try {
-          console.log('Executando análise para vela:', newCandle.id)
+          console.log('🔄 Executando análise para vela:', newCandle.id, 'Par:', newCandle.pair)
           const response = await fetch('/api/analyze', {
             method: 'POST',
             headers: {
@@ -128,27 +135,30 @@ export default function Home() {
           const result = await response.json()
           
           if (response.ok) {
-            console.log('Análise executada com sucesso:', result)
+            console.log('✅ Análise executada com sucesso:', result)
             // Forçar atualização das previsões após 1 segundo
             setTimeout(() => {
               fetchPredictions(newCandle.id)
             }, 1000)
           } else {
-            console.error('Erro na análise:', result.error)
+            console.error('❌ Erro na análise:', result.error)
             // Mesmo com erro, tentar buscar previsões existentes
             fetchPredictions(newCandle.id)
           }
         } catch (error) {
-          console.error('Erro ao executar análise:', error)
+          console.error('❌ Erro ao executar análise:', error)
           // Mesmo com erro, tentar buscar previsões existentes
           fetchPredictions(newCandle.id)
+        } finally {
+          setIsAnalyzing(false)
         }
       }
 
       // Buscar previsões existentes primeiro
       fetchPredictions(newCandle.id)
 
-      // Verificar se já existe consenso para esta vela
+      // Sempre executar análise quando uma nova vela chegar
+      // Verificar se já existe consenso primeiro (para evitar análise duplicada)
       supabase
         .from('consensus_analysis')
         .select('*')
@@ -158,13 +168,23 @@ export default function Home() {
           if (error && error.code !== 'PGRST116') {
             console.error('Erro ao verificar consenso:', error)
           }
-          // Se não existe consenso, executar análise
-          if (!data) {
-            console.log('Consenso não encontrado, executando análise...')
+          
+          // Se não existe consenso OU se não tem previsões suficientes, executar análise
+          if (!data || (data.total_strategies < 5)) {
+            console.log('Executando análise para vela:', newCandle.id)
             executeAnalysis()
           } else {
-            console.log('Consenso já existe, pulando análise')
+            console.log('Consenso já existe com', data.total_strategies, 'estratégias')
+            // Mesmo assim, buscar previsões para garantir que estão atualizadas
+            setTimeout(() => {
+              fetchPredictions(newCandle.id)
+            }, 500)
           }
+        })
+        .catch((err) => {
+          console.error('Erro ao verificar consenso, executando análise mesmo assim:', err)
+          // Em caso de erro, executar análise
+          executeAnalysis()
         })
     }
   }, [forexData])
@@ -180,14 +200,48 @@ export default function Home() {
               Análise probabilística com 10 estratégias em tempo real
             </p>
           </div>
-          <button
-            onClick={() => refetchForex()}
-            disabled={isLoadingForex}
-            className="card flex items-center gap-2 hover:bg-[#252525] transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isLoadingForex ? 'animate-spin' : ''}`} />
-            <span>Atualizar</span>
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (currentCandle) {
+                  setIsAnalyzing(true)
+                  try {
+                    const response = await fetch('/api/analyze', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        candleId: currentCandle.id,
+                        pair: currentCandle.pair,
+                      }),
+                    })
+                    const result = await response.json()
+                    if (response.ok) {
+                      console.log('Análise manual executada:', result)
+                      setTimeout(() => fetchPredictions(currentCandle.id), 1000)
+                    }
+                  } catch (error) {
+                    console.error('Erro na análise manual:', error)
+                  } finally {
+                    setIsAnalyzing(false)
+                  }
+                }
+              }}
+              disabled={!currentCandle || isAnalyzing}
+              className="card flex items-center gap-2 hover:bg-[#252525] transition-colors disabled:opacity-50"
+              title="Forçar análise das estratégias"
+            >
+              <RefreshCw className={`w-4 h-4 ${isAnalyzing ? 'animate-spin' : ''}`} />
+              <span>{isAnalyzing ? 'Analisando...' : 'Forçar Análise'}</span>
+            </button>
+            <button
+              onClick={() => refetchForex()}
+              disabled={isLoadingForex}
+              className="card flex items-center gap-2 hover:bg-[#252525] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingForex ? 'animate-spin' : ''}`} />
+              <span>Atualizar Dados</span>
+            </button>
+          </div>
         </div>
 
         {/* Seletor de Par */}
