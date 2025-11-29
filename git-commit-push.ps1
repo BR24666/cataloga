@@ -16,7 +16,7 @@ Write-Host "✅ Arquivos adicionados" -ForegroundColor Green
 
 # 3. Fazer commit
 Write-Host "`n[3/4] Fazendo commit..." -ForegroundColor Yellow
-$commitMessage = "fix: Corrigir loop de requisições e adicionar logs detalhados para debug das estratégias"
+$commitMessage = "fix: Reescrever app para corrigir loop infinito de requisições - desabilitar refetch automático e usar polling manual"
 git commit -m $commitMessage
 
 if ($LASTEXITCODE -eq 0) {
