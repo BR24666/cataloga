@@ -16,7 +16,7 @@ Write-Host "✅ Arquivos adicionados" -ForegroundColor Green
 
 # 3. Fazer commit
 Write-Host "`n[3/4] Fazendo commit..." -ForegroundColor Yellow
-$commitMessage = "fix: Corrigir travamento do sistema de análise - timeout, polling e melhor feedback visual"
+$commitMessage = "fix: Corrigir loop de requisições e adicionar logs detalhados para debug das estratégias"
 git commit -m $commitMessage
 
 if ($LASTEXITCODE -eq 0) {
@@ -38,4 +38,3 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 Write-Host "`n"
-

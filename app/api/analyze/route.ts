@@ -75,7 +75,27 @@ export async function POST(request: NextRequest) {
     // Reverter para ordem cronológica e usar apenas as disponíveis
     const candles = historicalCandles.slice(0, availableCandles).reverse() as ForexCandle[]
     
-    console.log(`Analisando com ${candles.length} velas históricas`)
+    console.log(`📊 Analisando com ${candles.length} velas históricas`)
+    if (candles.length > 0) {
+      console.log(`📅 Timestamps: ${candles[0]?.timestamp} → ${candles[candles.length - 1]?.timestamp}`)
+      console.log(`🎨 Cores das últimas 5 velas:`, candles.slice(-5).map(c => c.color).join(', '))
+      
+      // Verificar se as velas estão na ordem correta (mais antiga → mais recente)
+      if (candles.length >= 2) {
+        const firstTimestamp = new Date(candles[0].timestamp).getTime()
+        const lastTimestamp = new Date(candles[candles.length - 1].timestamp).getTime()
+        if (firstTimestamp > lastTimestamp) {
+          console.warn('⚠️ ATENÇÃO: Velas podem estar em ordem incorreta!')
+        } else {
+          console.log('✅ Velas em ordem cronológica correta')
+        }
+      }
+      
+      // Verificar distribuição de cores
+      const greenCount = candles.filter(c => c.color === 'green').length
+      const redCount = candles.filter(c => c.color === 'red').length
+      console.log(`📊 Distribuição: ${greenCount} verdes, ${redCount} vermelhas`)
+    }
 
     // Executar análise de cada estratégia
     const predictions = []
@@ -85,6 +105,14 @@ export async function POST(request: NextRequest) {
     let strategiesWithoutPrediction = 0
 
     console.log(`🔍 Executando ${STRATEGIES.length} estratégias com ${candles.length} velas...`)
+    console.log(`📊 Primeiras 3 velas:`, candles.slice(0, 3).map(c => ({
+      timestamp: c.timestamp,
+      color: c.color,
+      open: c.open,
+      close: c.close,
+      high: c.high,
+      low: c.low
+    })))
 
     for (const strategy of STRATEGIES) {
       try {
@@ -128,6 +156,11 @@ export async function POST(request: NextRequest) {
         } else {
           strategiesWithoutPrediction++
           console.log(`⚪ ${strategy.name}: Sem previsão - ${result.reasoning || 'Padrão não encontrado'}`)
+          // Log detalhado para estratégias que não retornam previsão
+          if (candles.length >= 2) {
+            const last2 = candles.slice(-2)
+            console.log(`   📊 Últimas 2 velas: [${last2[0].color}, ${last2[1].color}]`)
+          }
         }
       } catch (strategyError) {
         console.error(`❌ Erro na estratégia ${strategy.name}:`, strategyError)

@@ -17,6 +17,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const lastAnalyzedCandleId = useRef<string | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const processingCandleId = useRef<string | null>(null) // Evitar processamento duplicado
 
   // Buscar dados do Forex
   const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
@@ -161,13 +162,21 @@ export default function Home() {
       return
     }
     
-    // Evitar atualizar se for a mesma vela (verificar antes de setar)
+    // Evitar processamento duplicado da mesma vela
+    if (processingCandleId.current === newCandle.id) {
+      console.log('⏸️ Vela já está sendo processada, aguardando...', newCandle.id)
+      return
+    }
+    
+    // Evitar atualizar se for a mesma vela já analisada
     if (currentCandle?.id === newCandle.id && lastAnalyzedCandleId.current === newCandle.id) {
+      console.log('⏸️ Mesma vela já analisada, pulando:', newCandle.id)
       return
     }
 
     // Atualizar vela apenas se for diferente e tiver ID válido
     if (currentCandle?.id !== newCandle.id && newCandle.id) {
+      console.log('🔄 Nova vela detectada:', newCandle.id, 'Anterior:', currentCandle?.id)
       setCurrentCandle(newCandle)
     }
 
@@ -226,10 +235,13 @@ export default function Home() {
     }
 
     // Evitar análise duplicada para a mesma vela
-    if (lastAnalyzedCandleId.current === newCandle.id) {
-      console.log('Vela já analisada, pulando...')
+    if (lastAnalyzedCandleId.current === newCandle.id && processingCandleId.current === newCandle.id) {
+      console.log('⏸️ Vela já analisada e processada, pulando...', newCandle.id)
       return
     }
+
+    // Marcar vela como sendo processada
+    processingCandleId.current = newCandle.id
 
     // Buscar previsões existentes primeiro (só se tiver ID válido)
     if (newCandle.id) {
@@ -252,7 +264,7 @@ export default function Home() {
         
         // Se não existe consenso OU se não tem previsões suficientes, executar análise
         if (!data || (data.total_strategies < 5)) {
-          console.log('Executando análise para vela:', newCandle.id)
+          console.log('📊 Executando análise para vela:', newCandle.id)
           lastAnalyzedCandleId.current = newCandle.id
           
           // Limpar polling anterior se existir
@@ -283,8 +295,9 @@ export default function Home() {
             }
           }, 2000) // Verificar a cada 2 segundos
         } else {
-          console.log('Consenso já existe com', data.total_strategies, 'estratégias')
+          console.log('✅ Consenso já existe com', data.total_strategies, 'estratégias')
           lastAnalyzedCandleId.current = newCandle.id
+          processingCandleId.current = null // Liberar processamento
           // Mesmo assim, buscar previsões para garantir que estão atualizadas
           setTimeout(() => {
             fetchPredictions(newCandle.id)
@@ -295,6 +308,13 @@ export default function Home() {
         // Em caso de erro, executar análise
         lastAnalyzedCandleId.current = newCandle.id
         await executeAnalysis()
+      } finally {
+        // Liberar processamento após um tempo
+        setTimeout(() => {
+          if (processingCandleId.current === newCandle.id) {
+            processingCandleId.current = null
+          }
+        }, 5000)
       }
     }
 
