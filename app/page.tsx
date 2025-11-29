@@ -16,6 +16,7 @@ export default function Home() {
   const [consensus, setConsensus] = useState<ConsensusAnalysis | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const lastAnalyzedCandleId = useRef<string | null>(null)
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Buscar dados do Forex
   const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
@@ -87,6 +88,16 @@ export default function Home() {
       console.error('Erro ao buscar previsões:', error)
     }
   }
+
+  // Limpar polling quando componente desmontar ou vela mudar
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+  }, [currentCandle?.id])
 
   // Buscar previsões e consenso quando a vela mudar
   useEffect(() => {
@@ -170,6 +181,11 @@ export default function Home() {
       setIsAnalyzing(true)
       try {
         console.log('🔄 Executando análise para vela:', newCandle.id, 'Par:', newCandle.pair)
+        
+        // Criar AbortController para timeout
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 segundos de timeout
+        
         const response = await fetch('/api/analyze', {
           method: 'POST',
           headers: {
@@ -179,8 +195,10 @@ export default function Home() {
             candleId: newCandle.id,
             pair: newCandle.pair,
           }),
+          signal: controller.signal,
         })
 
+        clearTimeout(timeoutId)
         const result = await response.json()
         
         if (response.ok) {
@@ -194,8 +212,12 @@ export default function Home() {
           // Mesmo com erro, tentar buscar previsões existentes
           fetchPredictions(newCandle.id)
         }
-      } catch (error) {
-        console.error('❌ Erro ao executar análise:', error)
+      } catch (error: any) {
+        if (error.name === 'AbortError') {
+          console.error('⏱️ Análise expirou após 30 segundos')
+        } else {
+          console.error('❌ Erro ao executar análise:', error)
+        }
         // Mesmo com erro, tentar buscar previsões existentes
         fetchPredictions(newCandle.id)
       } finally {
@@ -232,7 +254,34 @@ export default function Home() {
         if (!data || (data.total_strategies < 5)) {
           console.log('Executando análise para vela:', newCandle.id)
           lastAnalyzedCandleId.current = newCandle.id
+          
+          // Limpar polling anterior se existir
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current)
+            pollIntervalRef.current = null
+          }
+          
           await executeAnalysis()
+          
+          // Após análise, fazer polling para buscar resultados (caso a análise tenha demorado)
+          let attempts = 0
+          const maxAttempts = 10
+          pollIntervalRef.current = setInterval(async () => {
+            attempts++
+            const { data: updatedConsensus } = await supabase
+              .from('consensus_analysis')
+              .select('*')
+              .eq('candle_id', newCandle.id)
+              .maybeSingle()
+            
+            if (updatedConsensus || attempts >= maxAttempts) {
+              if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current)
+                pollIntervalRef.current = null
+              }
+              fetchPredictions(newCandle.id)
+            }
+          }, 2000) // Verificar a cada 2 segundos
         } else {
           console.log('Consenso já existe com', data.total_strategies, 'estratégias')
           lastAnalyzedCandleId.current = newCandle.id
@@ -389,7 +438,7 @@ export default function Home() {
           {/* Coluna Esquerda */}
           <div className="space-y-6">
             <CandleDisplay candle={currentCandle} isLoading={isLoadingForex} />
-            <ConsensusPanel consensus={consensus} isLoading={isLoadingForex} />
+            <ConsensusPanel consensus={consensus} isLoading={isLoadingForex || isAnalyzing} isAnalyzing={isAnalyzing} />
           </div>
 
           {/* Coluna Direita */}

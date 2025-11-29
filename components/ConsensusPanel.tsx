@@ -6,6 +6,7 @@ import type { ConsensusAnalysis } from '@/lib/supabase'
 interface ConsensusPanelProps {
   consensus: ConsensusAnalysis | null
   isLoading?: boolean
+  isAnalyzing?: boolean
 }
 
 // Função para calcular força do sinal
@@ -22,7 +23,7 @@ function calculateSignalStrength(total: number, majorityCount: number): 'strong'
   return 'weak'
 }
 
-export default function ConsensusPanel({ consensus, isLoading }: ConsensusPanelProps) {
+export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: ConsensusPanelProps) {
   if (isLoading) {
     return (
       <div className="card">
@@ -41,12 +42,34 @@ export default function ConsensusPanel({ consensus, isLoading }: ConsensusPanelP
           <Target className="w-5 h-5 text-blue-400" />
           <h3 className="text-lg font-semibold">🎯 PREVISÃO PRÓXIMA VELA</h3>
         </div>
-        <div className="space-y-2">
-          <p className="text-gray-400">Aguardando análise das estratégias...</p>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-            <span>Executando análise automática...</span>
-          </div>
+        <div className="space-y-3">
+          {isAnalyzing ? (
+            <>
+              <p className="text-blue-400 font-semibold">🔄 Analisando estratégias...</p>
+              <div className="flex items-center gap-2 text-sm text-blue-400">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span>Executando análise automática das 10 estratégias...</span>
+              </div>
+              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-200">
+                <p className="font-semibold mb-1">⏳ Processando:</p>
+                <p>As estratégias estão sendo executadas. Isso pode levar alguns segundos.</p>
+                <p className="mt-2">Aguarde enquanto analisamos os padrões das velas...</p>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-gray-400">Aguardando análise das estratégias...</p>
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
+                <span>Nenhuma análise em andamento</span>
+              </div>
+              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200">
+                <p className="font-semibold mb-1">💡 Dica:</p>
+                <p>As estratégias precisam identificar padrões nas velas. Se não houver padrões claros, nenhuma previsão será gerada.</p>
+                <p className="mt-2">A análise será executada automaticamente quando uma nova vela chegar.</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
     )

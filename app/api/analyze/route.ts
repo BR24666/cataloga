@@ -4,10 +4,13 @@ import { STRATEGIES } from '@/lib/strategies'
 import type { ForexCandle } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
   try {
     const { candleId, pair } = await request.json()
 
+    console.log('📊 ========================================')
     console.log('📊 Iniciando análise - CandleId:', candleId, 'Pair:', pair)
+    console.log('📊 ========================================')
 
     if (!candleId || !pair) {
       console.error('❌ Parâmetros faltando - candleId:', candleId, 'pair:', pair)
@@ -78,12 +81,19 @@ export async function POST(request: NextRequest) {
     const predictions = []
     let greenCount = 0
     let redCount = 0
+    let strategiesWithPrediction = 0
+    let strategiesWithoutPrediction = 0
+
+    console.log(`🔍 Executando ${STRATEGIES.length} estratégias com ${candles.length} velas...`)
 
     for (const strategy of STRATEGIES) {
       try {
         const result = strategy.rules(candles)
 
         if (result.prediction) {
+          strategiesWithPrediction++
+          console.log(`✅ ${strategy.name}: ${result.prediction} (${result.confidence}%) - ${result.reasoning}`)
+          
           // Salvar previsão no banco
           const { data: prediction, error } = await supabase
             .from('strategy_predictions')
@@ -101,7 +111,9 @@ export async function POST(request: NextRequest) {
             .select()
             .single()
 
-          if (!error && prediction) {
+          if (error) {
+            console.error(`❌ Erro ao salvar previsão da estratégia ${strategy.name}:`, error)
+          } else if (prediction) {
             predictions.push(prediction)
             
             if (result.prediction === 'green') {
@@ -109,26 +121,46 @@ export async function POST(request: NextRequest) {
             } else {
               redCount++
             }
+            console.log(`💾 Previsão salva: ${strategy.name} -> ${result.prediction}`)
+          } else {
+            console.warn(`⚠️ Previsão não retornada do banco para ${strategy.name}`)
           }
+        } else {
+          strategiesWithoutPrediction++
+          console.log(`⚪ ${strategy.name}: Sem previsão - ${result.reasoning || 'Padrão não encontrado'}`)
         }
       } catch (strategyError) {
-        console.error(`Erro na estratégia ${strategy.name}:`, strategyError)
+        console.error(`❌ Erro na estratégia ${strategy.name}:`, strategyError)
+        strategiesWithoutPrediction++
         // Continua com as outras estratégias mesmo se uma falhar
       }
     }
 
-    // Calcular consenso
+    console.log(`📊 Resumo: ${strategiesWithPrediction} estratégias com previsão, ${strategiesWithoutPrediction} sem previsão`)
+
+    // Calcular consenso (mesmo se total for 0, salvar para indicar que análise foi executada)
     const total = predictions.length
     const consensusPrediction = greenCount > redCount ? 'green' : greenCount < redCount ? 'red' : null
     const consensusConfidence = total > 0 
       ? Math.round((Math.max(greenCount, redCount) / total) * 100)
       : 0
 
+    console.log(`📈 Consenso calculado: ${consensusPrediction || 'indefinido'} (${consensusConfidence}%) - ${greenCount} verdes, ${redCount} vermelhas, ${total} total`)
+    
+    // Se nenhuma estratégia retornou previsão, logar aviso
+    if (total === 0) {
+      console.warn('⚠️ Nenhuma estratégia retornou previsão. Isso pode indicar:')
+      console.warn('   - Dados históricos insuficientes para padrões')
+      console.warn('   - Velas não apresentam padrões reconhecíveis')
+      console.warn('   - Estratégias precisam de mais dados históricos')
+    }
+
     // Calcular timestamp de revelação (próxima vela - 1 minuto)
     const currentTimestamp = new Date(currentCandle.timestamp)
     const revealTimestamp = new Date(currentTimestamp.getTime() + 60 * 1000) // +1 minuto
 
-    // Salvar ou atualizar consenso
+    // Salvar ou atualizar consenso (sempre salvar, mesmo se total for 0)
+    console.log(`💾 Salvando consenso no banco...`)
     const { data: consensus, error: consensusError } = await supabase
       .from('consensus_analysis')
       .upsert({
@@ -150,12 +182,18 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (consensusError) {
-      console.error('Erro ao salvar consenso:', consensusError)
+      console.error('❌ Erro ao salvar consenso:', consensusError)
+    } else if (consensus) {
+      console.log(`✅ Consenso salvo com sucesso: ID ${consensus.id}`)
+    } else {
+      console.warn('⚠️ Consenso não retornado do banco')
     }
 
-    console.log(`✅ Análise concluída: ${predictions.length} previsões geradas`)
+    const duration = Date.now() - startTime
+    console.log(`✅ Análise concluída em ${duration}ms: ${predictions.length} previsões geradas`)
     console.log(`   🟩 Verdes: ${greenCount} | 🟥 Vermelhas: ${redCount}`)
     console.log(`   📊 Consenso: ${consensusPrediction} (${consensusConfidence}% confiança)`)
+    console.log('📊 ========================================')
 
     return NextResponse.json({
       success: true,
@@ -169,7 +207,11 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error: any) {
-    console.error('Erro na análise:', error)
+    const duration = Date.now() - startTime
+    console.error('❌ ========================================')
+    console.error('❌ Erro na análise após', duration, 'ms:', error)
+    console.error('❌ Stack:', error.stack)
+    console.error('❌ ========================================')
     return NextResponse.json(
       { error: error.message || 'Erro ao executar análise' },
       { status: 500 }
