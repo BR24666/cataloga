@@ -63,10 +63,17 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
                 <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
                 <span>Nenhuma análise em andamento</span>
               </div>
-              <div className="mt-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-200">
-                <p className="font-semibold mb-1">💡 Dica:</p>
-                <p>As estratégias precisam identificar padrões nas velas. Se não houver padrões claros, nenhuma previsão será gerada.</p>
-                <p className="mt-2">A análise será executada automaticamente quando uma nova vela chegar.</p>
+              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded text-xs text-blue-200">
+                <p className="font-semibold mb-1">📊 Como funciona:</p>
+                <p className="mb-2">As estratégias precisam de histórico para identificar padrões:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li><strong>Vela de Força:</strong> Precisa de 1 vela (mas só funciona se a vela for "forte")</li>
+                  <li><strong>Engolfo:</strong> Precisa de 2+ velas</li>
+                  <li><strong>Três Soldados:</strong> Precisa de 3+ velas</li>
+                  <li><strong>MHI:</strong> Precisa de 3+ velas</li>
+                  <li><strong>Três Vales/Picos:</strong> Precisa de 6+ velas</li>
+                </ul>
+                <p className="mt-2 font-semibold">💡 Aguarde 1-2 minutos para coletar mais velas!</p>
               </div>
             </>
           )}

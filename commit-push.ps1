@@ -17,14 +17,17 @@ Write-Host "✅ Arquivos adicionados" -ForegroundColor Green
 # 3. Fazer commit
 Write-Host "`n[3/4] Fazendo commit..." -ForegroundColor Yellow
 $commitMessage = @"
-fix: Corrigir sistema de análise - reduzir para 5 estratégias e melhorar monitoramento
+fix: Melhorar sistema de análise com logs detalhados e feedback claro
 
 - Habilitar polling automático a cada 60s para monitorar velas
 - Reduzir estratégias de 10 para 5 (as melhores)
 - Ajustar lógica de consenso para mostrar quando 2 discordam e 3 não falam nada
 - Melhorar detecção de novas velas (comparar ID e timestamp)
 - Adicionar painel mostrando estratégias sem previsão
-- Melhorar logs e feedback visual
+- Melhorar logs detalhados no servidor para debug
+- Adicionar feedback claro sobre requisitos de cada estratégia
+- Adicionar busca inicial automática ao carregar página
+- Melhorar mensagens explicando por que não há previsões no início
 "@
 
 git commit -m $commitMessage

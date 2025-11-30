@@ -31,9 +31,19 @@ export default function StrategiesList({ predictions, isLoading }: StrategiesLis
         <div className="space-y-3">
           <p className="text-gray-400">Aguardando análise das estratégias...</p>
           <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-sm text-blue-200">
-            <p className="font-semibold mb-1">📊 Status:</p>
-            <p>As 5 estratégias estão sendo analisadas. Algumas podem não identificar padrões nas velas atuais.</p>
-            <p className="mt-2 text-xs text-blue-300">
+            <p className="font-semibold mb-2">📊 Por que não há previsões?</p>
+            <p className="mb-2">As estratégias precisam de histórico para funcionar:</p>
+            <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
+              <li><strong>Vela de Força:</strong> 1 vela (mas só se for "forte")</li>
+              <li><strong>Engolfo:</strong> 2+ velas</li>
+              <li><strong>Três Soldados:</strong> 3+ velas</li>
+              <li><strong>MHI:</strong> 3+ velas</li>
+              <li><strong>Três Vales/Picos:</strong> 6+ velas</li>
+            </ul>
+            <p className="mt-2 text-xs font-semibold">
+              ⏳ Aguarde 1-2 minutos para coletar mais velas!
+            </p>
+            <p className="mt-1 text-xs text-blue-300">
               Quando 2 estratégias discordam e 3 não dão sinal, o consenso será <strong>INDEFINIDO</strong>.
             </p>
           </div>

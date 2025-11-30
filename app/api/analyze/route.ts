@@ -63,7 +63,15 @@ export async function POST(request: NextRequest) {
 
     // Se tiver apenas 1 vela, algumas estratégias não funcionarão, mas outras sim
     if (historicalCandles.length === 1) {
-      console.warn('⚠️ Apenas 1 vela disponível. Algumas estratégias podem não funcionar.')
+      console.warn('⚠️ ========================================')
+      console.warn('⚠️ ATENÇÃO: Apenas 1 vela disponível!')
+      console.warn('⚠️ A maioria das estratégias precisa de 2-6 velas para funcionar.')
+      console.warn('⚠️ Apenas "Vela de Força" pode funcionar com 1 vela.')
+      console.warn('⚠️ Aguarde mais velas serem coletadas (1-2 minutos).')
+      console.warn('⚠️ ========================================')
+    } else if (historicalCandles.length < 3) {
+      console.warn(`⚠️ Apenas ${historicalCandles.length} velas disponíveis.`)
+      console.warn('⚠️ Algumas estratégias precisam de 3+ velas para funcionar.')
     }
 
     console.log('✅ Dados históricos encontrados:', historicalCandles.length, 'velas')
@@ -116,11 +124,21 @@ export async function POST(request: NextRequest) {
 
     for (const strategy of STRATEGIES) {
       try {
+        console.log(`\n🔍 [${strategy.name}] Executando estratégia...`)
+        console.log(`   📊 Velas disponíveis: ${candles.length}`)
+        
         const result = strategy.rules(candles)
+        
+        console.log(`   📋 Resultado:`, {
+          prediction: result.prediction,
+          confidence: result.confidence,
+          reasoning: result.reasoning
+        })
 
         if (result.prediction) {
           strategiesWithPrediction++
-          console.log(`✅ ${strategy.name}: ${result.prediction} (${result.confidence}%) - ${result.reasoning}`)
+          console.log(`✅ [${strategy.name}] PREVISÃO: ${result.prediction.toUpperCase()} (${result.confidence}%)`)
+          console.log(`   💡 Motivo: ${result.reasoning}`)
           
           // Salvar previsão no banco
           const { data: prediction, error } = await supabase
@@ -140,7 +158,8 @@ export async function POST(request: NextRequest) {
             .single()
 
           if (error) {
-            console.error(`❌ Erro ao salvar previsão da estratégia ${strategy.name}:`, error)
+            console.error(`❌ [${strategy.name}] Erro ao salvar previsão:`, error)
+            console.error(`   Código: ${error.code}, Mensagem: ${error.message}`)
           } else if (prediction) {
             predictions.push(prediction)
             
@@ -149,21 +168,30 @@ export async function POST(request: NextRequest) {
             } else {
               redCount++
             }
-            console.log(`💾 Previsão salva: ${strategy.name} -> ${result.prediction}`)
+            console.log(`💾 [${strategy.name}] Previsão salva no banco: ${result.prediction}`)
           } else {
-            console.warn(`⚠️ Previsão não retornada do banco para ${strategy.name}`)
+            console.warn(`⚠️ [${strategy.name}] Previsão não retornada do banco`)
           }
         } else {
           strategiesWithoutPrediction++
-          console.log(`⚪ ${strategy.name}: Sem previsão - ${result.reasoning || 'Padrão não encontrado'}`)
+          console.log(`⚪ [${strategy.name}] SEM PREVISÃO`)
+          console.log(`   📝 Motivo: ${result.reasoning || 'Padrão não encontrado'}`)
+          
           // Log detalhado para estratégias que não retornam previsão
           if (candles.length >= 2) {
             const last2 = candles.slice(-2)
             console.log(`   📊 Últimas 2 velas: [${last2[0].color}, ${last2[1].color}]`)
+            console.log(`   📊 Valores:`, {
+              vela1: { open: last2[0].open, close: last2[0].close, high: last2[0].high, low: last2[0].low },
+              vela2: { open: last2[1].open, close: last2[1].close, high: last2[1].high, low: last2[1].low }
+            })
+          } else {
+            console.log(`   ⚠️ Apenas ${candles.length} vela(s) disponível(is) - estratégia precisa de mais dados`)
           }
         }
-      } catch (strategyError) {
-        console.error(`❌ Erro na estratégia ${strategy.name}:`, strategyError)
+      } catch (strategyError: any) {
+        console.error(`❌ [${strategy.name}] ERRO na estratégia:`, strategyError)
+        console.error(`   Stack:`, strategyError.stack)
         strategiesWithoutPrediction++
         // Continua com as outras estratégias mesmo se uma falhar
       }
@@ -186,19 +214,32 @@ export async function POST(request: NextRequest) {
 
     console.log(`📈 Consenso calculado: ${consensusPrediction || 'indefinido'} (${consensusConfidence}%) - ${greenCount} verdes, ${redCount} vermelhas, ${total} total`)
     
-    // Se nenhuma estratégia retornou previsão, logar aviso
+    // Se nenhuma estratégia retornou previsão, logar aviso detalhado
     if (total === 0) {
-      console.warn('⚠️ ========================================')
+      console.warn('\n⚠️ ========================================')
       console.warn('⚠️ ATENÇÃO: Nenhuma estratégia retornou previsão!')
-      console.warn('⚠️ Isso pode indicar:')
-      console.warn('   - Dados históricos insuficientes para padrões')
-      console.warn('   - Velas não apresentam padrões reconhecíveis')
-      console.warn('   - Estratégias precisam de mais dados históricos')
-      console.warn(`⚠️ Velas disponíveis: ${candles.length}`)
       console.warn('⚠️ ========================================')
+      console.warn(`📊 Velas disponíveis: ${candles.length}`)
+      console.warn(`📊 Estratégias executadas: ${STRATEGIES.length}`)
+      console.warn(`📊 Estratégias com previsão: ${strategiesWithPrediction}`)
+      console.warn(`📊 Estratégias sem previsão: ${strategiesWithoutPrediction}`)
+      console.warn('\n💡 Possíveis causas:')
+      console.warn('   1. Dados históricos insuficientes')
+      console.warn('      - Engolfo precisa de 2+ velas')
+      console.warn('      - Três Soldados precisa de 3+ velas')
+      console.warn('      - Três Vales/Picos precisa de 6+ velas')
+      console.warn('      - MHI precisa de 3+ velas')
+      console.warn('   2. Velas não apresentam padrões reconhecíveis')
+      console.warn('      - Vela de Força só funciona se a vela tiver corpo > 70% do range')
+      console.warn('   3. Aguarde mais velas serem coletadas (1-2 minutos)')
+      console.warn('\n✅ Isso é NORMAL no início!')
+      console.warn('   O sistema precisa de histórico para identificar padrões.')
+      console.warn('   Aguarde alguns minutos e as previsões começarão a aparecer.')
+      console.warn('⚠️ ========================================\n')
     } else if (total < 5) {
-      console.warn(`⚠️ Apenas ${total} de 5 estratégias retornaram previsão`)
+      console.warn(`\n⚠️ Apenas ${total} de 5 estratégias retornaram previsão`)
       console.warn(`⚠️ ${strategiesWithoutPrediction} estratégias não identificaram padrões`)
+      console.warn(`💡 Isso é normal - nem sempre há padrões em todas as estratégias\n`)
     }
 
     // Calcular timestamp de revelação (próxima vela - 1 minuto)
