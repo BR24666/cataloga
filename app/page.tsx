@@ -141,6 +141,15 @@ export default function Home() {
     }
   }
 
+  // Forçar busca inicial quando o componente monta
+  useEffect(() => {
+    console.log('🚀 [INIT] Componente montado, buscando dados iniciais...')
+    // Pequeno delay para garantir que tudo está inicializado
+    setTimeout(() => {
+      refetchForex()
+    }, 500)
+  }, [refetchForex]) // Executa quando o componente monta e quando refetchForex muda
+
   // Processar nova vela quando dados chegarem
   useEffect(() => {
     if (!forexData?.candle) {
