@@ -34,7 +34,7 @@ export default function StrategiesList({ predictions, isLoading }: StrategiesLis
             <p className="font-semibold mb-2">📊 Por que não há previsões?</p>
             <p className="mb-2">As estratégias precisam de histórico para funcionar:</p>
             <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-              <li><strong>Vela de Força:</strong> 1 vela (mas só se for "forte")</li>
+              <li><strong>Vela de Força:</strong> 1 vela (mas só se for &quot;forte&quot;)</li>
               <li><strong>Engolfo:</strong> 2+ velas</li>
               <li><strong>Três Soldados:</strong> 3+ velas</li>
               <li><strong>MHI:</strong> 3+ velas</li>

@@ -67,7 +67,7 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
                 <p className="font-semibold mb-1">📊 Como funciona:</p>
                 <p className="mb-2">As estratégias precisam de histórico para identificar padrões:</p>
                 <ul className="list-disc list-inside space-y-1 ml-2">
-                  <li><strong>Vela de Força:</strong> Precisa de 1 vela (mas só funciona se a vela for "forte")</li>
+                  <li><strong>Vela de Força:</strong> Precisa de 1 vela (mas só funciona se a vela for &quot;forte&quot;)</li>
                   <li><strong>Engolfo:</strong> Precisa de 2+ velas</li>
                   <li><strong>Três Soldados:</strong> Precisa de 3+ velas</li>
                   <li><strong>MHI:</strong> Precisa de 3+ velas</li>

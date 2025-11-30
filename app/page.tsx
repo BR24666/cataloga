@@ -230,6 +230,7 @@ export default function Home() {
     }
 
     checkAndAnalyze()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forexData?.candle?.id, forexData?.candle?.timestamp]) // Dispara quando ID ou timestamp muda
 
   // Escutar mudanças em tempo real para a vela atual
