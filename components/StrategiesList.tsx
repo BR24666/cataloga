@@ -27,15 +27,32 @@ export default function StrategiesList({ predictions, isLoading }: StrategiesLis
   if (predictions.length === 0) {
     return (
       <div className="card">
-        <h3 className="text-lg font-semibold mb-4">Estratégias</h3>
-        <p className="text-gray-400">Nenhuma previsão disponível ainda</p>
+        <h3 className="text-lg font-semibold mb-4">Estratégias (5 total)</h3>
+        <div className="space-y-3">
+          <p className="text-gray-400">Aguardando análise das estratégias...</p>
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3 text-sm text-blue-200">
+            <p className="font-semibold mb-1">📊 Status:</p>
+            <p>As 5 estratégias estão sendo analisadas. Algumas podem não identificar padrões nas velas atuais.</p>
+            <p className="mt-2 text-xs text-blue-300">
+              Quando 2 estratégias discordam e 3 não dão sinal, o consenso será <strong>INDEFINIDO</strong>.
+            </p>
+          </div>
+        </div>
       </div>
     )
   }
 
+  const totalStrategies = 5
+  const strategiesWithoutPrediction = totalStrategies - predictions.length
+
   return (
     <div className="card">
-      <h3 className="text-lg font-semibold mb-4">Estratégias</h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold">Estratégias</h3>
+        <span className="text-xs text-gray-400">
+          {predictions.length} de {totalStrategies} com previsão
+        </span>
+      </div>
       <div className="space-y-3">
         {predictions.map((prediction) => {
           const isGreen = prediction.prediction === 'green'
@@ -73,6 +90,36 @@ export default function StrategiesList({ predictions, isLoading }: StrategiesLis
             </div>
           )
         })}
+        
+        {/* Mostrar estratégias sem previsão */}
+        {strategiesWithoutPrediction > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-700">
+            <p className="text-sm text-gray-400 mb-2">
+              {strategiesWithoutPrediction} estratégia{strategiesWithoutPrediction > 1 ? 's' : ''} sem previsão:
+            </p>
+            <div className="space-y-2">
+              {Array.from({ length: strategiesWithoutPrediction }).map((_, index) => (
+                <div
+                  key={`no-prediction-${index}`}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-gray-500/5 border-gray-500/20"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-gray-500/30 flex items-center justify-center">
+                      <span className="text-xs text-gray-400">-</span>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-gray-500">Estratégia sem padrão identificado</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Não foi possível identificar um padrão nas velas atuais
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-gray-500 text-sm">Sem sinal</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

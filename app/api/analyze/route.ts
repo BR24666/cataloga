@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     let strategiesWithPrediction = 0
     let strategiesWithoutPrediction = 0
 
-    console.log(`🔍 Executando ${STRATEGIES.length} estratégias com ${candles.length} velas...`)
+    console.log(`🔍 Executando ${STRATEGIES.length} estratégias (5 selecionadas) com ${candles.length} velas...`)
     console.log(`📊 Primeiras 3 velas:`, candles.slice(0, 3).map(c => ({
       timestamp: c.timestamp,
       color: c.color,
@@ -169,7 +169,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`📊 Resumo: ${strategiesWithPrediction} estratégias com previsão, ${strategiesWithoutPrediction} sem previsão`)
+    console.log(`📊 ========================================`)
+    console.log(`📊 RESUMO DA ANÁLISE:`)
+    console.log(`📊 Total de estratégias executadas: ${STRATEGIES.length}`)
+    console.log(`📊 Estratégias com previsão: ${strategiesWithPrediction}`)
+    console.log(`📊 Estratégias sem previsão: ${strategiesWithoutPrediction}`)
+    console.log(`📊 Verdes: ${greenCount} | Vermelhas: ${redCount}`)
+    console.log(`📊 ========================================`)
 
     // Calcular consenso (mesmo se total for 0, salvar para indicar que análise foi executada)
     const total = predictions.length
@@ -182,10 +188,17 @@ export async function POST(request: NextRequest) {
     
     // Se nenhuma estratégia retornou previsão, logar aviso
     if (total === 0) {
-      console.warn('⚠️ Nenhuma estratégia retornou previsão. Isso pode indicar:')
+      console.warn('⚠️ ========================================')
+      console.warn('⚠️ ATENÇÃO: Nenhuma estratégia retornou previsão!')
+      console.warn('⚠️ Isso pode indicar:')
       console.warn('   - Dados históricos insuficientes para padrões')
       console.warn('   - Velas não apresentam padrões reconhecíveis')
       console.warn('   - Estratégias precisam de mais dados históricos')
+      console.warn(`⚠️ Velas disponíveis: ${candles.length}`)
+      console.warn('⚠️ ========================================')
+    } else if (total < 5) {
+      console.warn(`⚠️ Apenas ${total} de 5 estratégias retornaram previsão`)
+      console.warn(`⚠️ ${strategiesWithoutPrediction} estratégias não identificaram padrões`)
     }
 
     // Calcular timestamp de revelação (próxima vela - 1 minuto)

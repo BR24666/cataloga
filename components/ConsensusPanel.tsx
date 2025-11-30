@@ -78,14 +78,20 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
   const total = consensus.total_strategies
   const greenCount = consensus.green_predictions
   const redCount = consensus.red_predictions
-  const greenPercent = total > 0 ? Math.round((greenCount / total) * 100) : 0
-  const redPercent = total > 0 ? Math.round((redCount / total) * 100) : 0
+  const totalStrategies = 5 // Total de estratégias configuradas
+  const strategiesWithoutPrediction = totalStrategies - total // Estratégias que não deram sinal
+  const greenPercent = totalStrategies > 0 ? Math.round((greenCount / totalStrategies) * 100) : 0
+  const redPercent = totalStrategies > 0 ? Math.round((redCount / totalStrategies) * 100) : 0
+  const neutralPercent = totalStrategies > 0 ? Math.round((strategiesWithoutPrediction / totalStrategies) * 100) : 0
   const isGreen = consensus.consensus_prediction === 'green'
   const confidence = consensus.consensus_confidence || 0
   
   // Calcular força do sinal baseado na maioria
   const majorityCount = Math.max(greenCount, redCount)
   const signalStrength = calculateSignalStrength(total, majorityCount)
+  
+  // Detectar situação especial: 2 discordam e 3 não falam nada
+  const isDiscordantWithNeutrals = total === 2 && greenCount === 1 && redCount === 1 && strategiesWithoutPrediction === 3
 
   return (
     <div className="card">
@@ -112,7 +118,23 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
       </div>
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        {/* Alerta especial quando 2 discordam e 3 não falam nada */}
+        {isDiscordantWithNeutrals && (
+          <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-5 h-5 text-yellow-400" />
+              <span className="font-semibold text-yellow-400">⚠️ SITUAÇÃO ESPECIAL</span>
+            </div>
+            <p className="text-sm text-yellow-200">
+              <strong>2 estratégias discordam</strong> (1 verde vs 1 vermelho) e <strong>3 estratégias não deram sinal</strong>.
+            </p>
+            <p className="text-xs text-yellow-300 mt-2">
+              Neste caso, o consenso é <strong>indefinido</strong> - não há maioria clara.
+            </p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-4">
           <div className={`rounded-lg p-4 border ${
             isGreen && signalStrength === 'strong'
               ? 'bg-green-500/20 border-green-500'
@@ -128,7 +150,7 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
               )}
             </div>
             <div className="text-2xl font-bold text-green-400">{greenCount}</div>
-            <div className="text-xs text-gray-500">estratégias ({greenPercent}%)</div>
+            <div className="text-xs text-gray-500">de {totalStrategies} ({greenPercent}%)</div>
             {isGreen && (
               <div className="text-xs mt-1">
                 {signalStrength === 'strong' && (
@@ -159,7 +181,7 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
               )}
             </div>
             <div className="text-2xl font-bold text-red-400">{redCount}</div>
-            <div className="text-xs text-gray-500">estratégias ({redPercent}%)</div>
+            <div className="text-xs text-gray-500">de {totalStrategies} ({redPercent}%)</div>
             {!isGreen && (
               <div className="text-xs mt-1">
                 {signalStrength === 'strong' && (
@@ -174,10 +196,26 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
               </div>
             )}
           </div>
+
+          <div className="rounded-lg p-4 border bg-gray-500/10 border-gray-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+              <span className="text-sm text-gray-400">Sem Sinal</span>
+            </div>
+            <div className="text-2xl font-bold text-gray-400">{strategiesWithoutPrediction}</div>
+            <div className="text-xs text-gray-500">de {totalStrategies} ({neutralPercent}%)</div>
+            {strategiesWithoutPrediction > 0 && (
+              <div className="text-xs mt-1 text-gray-400">
+                Estratégias sem padrão identificado
+              </div>
+            )}
+          </div>
         </div>
 
         <div className={`border-2 rounded-lg p-4 ${
-          isGreen 
+          isDiscordantWithNeutrals
+            ? 'bg-yellow-500/10 border-yellow-500/50'
+            : isGreen 
             ? signalStrength === 'strong' 
               ? 'bg-green-500/20 border-green-500' 
               : signalStrength === 'medium'
@@ -191,18 +229,30 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-gray-400">Consenso:</span>
-            <div className={`flex items-center gap-2 font-bold text-lg ${
-              isGreen ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {isGreen ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-              {isGreen ? 'VERDE' : 'VERMELHO'}
-            </div>
+            {isDiscordantWithNeutrals ? (
+              <div className="flex items-center gap-2 font-bold text-lg text-yellow-400">
+                <AlertCircle className="w-5 h-5" />
+                INDEFINIDO
+              </div>
+            ) : (
+              <div className={`flex items-center gap-2 font-bold text-lg ${
+                isGreen ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {isGreen ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                {isGreen ? 'VERDE' : 'VERMELHO'}
+              </div>
+            )}
           </div>
           
           {/* Indicador de força do sinal */}
           <div className="flex items-center justify-between mt-3">
             <div className="flex items-center gap-2">
-              {signalStrength === 'strong' ? (
+              {isDiscordantWithNeutrals ? (
+                <>
+                  <AlertCircle className="w-4 h-4 text-yellow-400" />
+                  <span className="text-xs font-semibold text-yellow-400">SEM CONSENSO</span>
+                </>
+              ) : signalStrength === 'strong' ? (
                 <>
                   <Zap className="w-4 h-4 text-yellow-400" />
                   <span className="text-xs font-semibold text-yellow-400">SINAL FORTE</span>
@@ -220,23 +270,25 @@ export default function ConsensusPanel({ consensus, isLoading, isAnalyzing }: Co
               )}
             </div>
             <div className="text-xs text-gray-400">
-              {majorityCount} de {total} estratégias ({confidence}%)
+              {total > 0 ? `${majorityCount} de ${total} estratégias (${confidence}%)` : 'Nenhuma estratégia deu sinal'}
             </div>
           </div>
           
           {/* Barra de força do sinal */}
-          <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div 
-              className={`h-full transition-all ${
-                signalStrength === 'strong' 
-                  ? isGreen ? 'bg-green-500' : 'bg-red-500'
-                  : signalStrength === 'medium'
-                  ? isGreen ? 'bg-green-400' : 'bg-red-400'
-                  : isGreen ? 'bg-green-500/50' : 'bg-red-500/50'
-              }`}
-              style={{ width: `${confidence}%` }}
-            />
-          </div>
+          {!isDiscordantWithNeutrals && (
+            <div className="mt-2 h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className={`h-full transition-all ${
+                  signalStrength === 'strong' 
+                    ? isGreen ? 'bg-green-500' : 'bg-red-500'
+                    : signalStrength === 'medium'
+                    ? isGreen ? 'bg-green-400' : 'bg-red-400'
+                    : isGreen ? 'bg-green-500/50' : 'bg-red-500/50'
+                }`}
+                style={{ width: `${confidence}%` }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

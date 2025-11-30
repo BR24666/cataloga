@@ -333,7 +333,7 @@ function oddSequenceStrategy(candles: ForexCandle[]): { prediction: 'green' | 'r
   return { prediction: null, confidence: 0, reasoning: 'Sequência ímpar não identificada' }
 }
 
-// Configuração das estratégias
+// Configuração das estratégias - APENAS 5 ESTRATÉGIAS (as melhores)
 export const STRATEGIES: Strategy[] = [
   {
     id: '1',
@@ -379,51 +379,6 @@ export const STRATEGIES: Strategy[] = [
     bestHour: 10,
     bestDay: 1, // Segunda-feira
     rules: mhiStrategy,
-  },
-  {
-    id: '6',
-    name: 'Reversão Pós-Doji',
-    description: 'Reversão após vela Doji',
-    winrate: 84.2,
-    bestHour: 15,
-    bestDay: 1, // Segunda-feira
-    rules: dojiReversalStrategy,
-  },
-  {
-    id: '7',
-    name: 'Minoria',
-    description: 'Entrada a favor da cor que apareceu menos vezes',
-    winrate: 80.0,
-    bestHour: 9,
-    bestDay: 2, // Terça-feira
-    rules: minorityStrategy,
-  },
-  {
-    id: '8',
-    name: 'Primeira Vela do Quadrante',
-    description: 'Primeira vela forte de cada bloco de 15 minutos',
-    winrate: 75.0,
-    bestHour: 10,
-    bestDay: 0, // Domingo
-    rules: firstCandleQuadrantStrategy,
-  },
-  {
-    id: '9',
-    name: 'Alternância de Cores',
-    description: 'Mantém padrão alternado de cores',
-    winrate: 72.2,
-    bestHour: 11,
-    bestDay: 4, // Quinta-feira
-    rules: colorAlternationStrategy,
-  },
-  {
-    id: '10',
-    name: 'Sequência Ímpar',
-    description: 'Entrada contra sequência de 3 velas iguais',
-    winrate: 71.4,
-    bestHour: 9,
-    bestDay: 2, // Terça-feira
-    rules: oddSequenceStrategy,
   },
 ]
 

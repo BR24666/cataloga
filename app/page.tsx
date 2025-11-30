@@ -21,7 +21,7 @@ export default function Home() {
   const lastAnalysisTimeRef = useRef<number>(0)
   const isProcessingRef = useRef(false)
 
-  // Buscar dados do Forex - SEM refetch automático para evitar loop
+  // Buscar dados do Forex - COM refetch automático a cada minuto para monitorar vela a vela
   const { data: forexData, isLoading: isLoadingForex, error: forexError, refetch: refetchForex } = useQuery({
     queryKey: ['forex', selectedPair],
     queryFn: async () => {
@@ -43,9 +43,9 @@ export default function Home() {
       
       return responseData
     },
-    // DESABILITAR refetch automático - vamos controlar manualmente
-    refetchInterval: false,
-    staleTime: Infinity, // Dados nunca ficam "stale"
+    // HABILITAR refetch automático a cada 60 segundos para monitorar vela a vela
+    refetchInterval: 60000, // 60 segundos = 1 minuto (tempo de uma vela)
+    staleTime: 0, // Dados ficam stale imediatamente para forçar refetch
     retry: (failureCount, error: any) => {
       if (error?.message?.includes('429') || error?.message?.includes('RATE_LIMIT')) {
         return false
@@ -143,10 +143,14 @@ export default function Home() {
 
   // Processar nova vela quando dados chegarem
   useEffect(() => {
-    if (!forexData?.candle) return
+    if (!forexData?.candle) {
+      console.log('⏳ [VELA] Aguardando dados da vela...')
+      return
+    }
 
     const newCandle = forexData.candle as ForexCandle
     const newCandleId = newCandle.id
+    const newCandleTimestamp = newCandle.timestamp
 
     // Ignorar velas temporárias
     if (newCandleId?.toString().startsWith('temp-')) {
@@ -154,20 +158,34 @@ export default function Home() {
       return
     }
 
-    // Se for a mesma vela, apenas atualizar dados se necessário
-    if (lastCandleIdRef.current === newCandleId) {
-      // Só atualizar se não tiver consenso ainda
+    // Verificar se é realmente uma nova vela (comparar timestamp também)
+    const isNewCandle = lastCandleIdRef.current !== newCandleId || 
+                        (currentCandle && currentCandle.timestamp !== newCandleTimestamp)
+
+    if (!isNewCandle && lastCandleIdRef.current === newCandleId) {
+      // Mesma vela - apenas atualizar se necessário
       if (!consensus && newCandleId) {
+        console.log('🔄 [VELA] Mesma vela, buscando previsões...')
         fetchPredictions(newCandleId)
       }
       return
     }
 
     // NOVA VELA DETECTADA
-    console.log('🆕 [VELA] Nova vela detectada:', newCandleId, 'Anterior:', lastCandleIdRef.current)
+    console.log('🆕 [VELA] ========================================')
+    console.log('🆕 [VELA] Nova vela detectada!')
+    console.log('🆕 [VELA] ID:', newCandleId)
+    console.log('🆕 [VELA] Timestamp:', newCandleTimestamp)
+    console.log('🆕 [VELA] Cor:', newCandle.color)
+    console.log('🆕 [VELA] Anterior ID:', lastCandleIdRef.current)
+    console.log('🆕 [VELA] ========================================')
     
     lastCandleIdRef.current = newCandleId
     setCurrentCandle(newCandle)
+    
+    // Limpar consenso anterior para mostrar estado de análise
+    setConsensus(null)
+    setPredictions([])
     
     // Buscar previsões existentes primeiro
     fetchPredictions(newCandleId)
@@ -175,6 +193,9 @@ export default function Home() {
     // Verificar se precisa executar análise
     const checkAndAnalyze = async () => {
       try {
+        // Aguardar um pouco para garantir que a vela foi salva
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
         const { data: existingConsensus } = await supabase
           .from('consensus_analysis')
           .select('*')
@@ -182,12 +203,16 @@ export default function Home() {
           .maybeSingle()
 
         // Se não tem consenso ou tem menos de 5 estratégias, executar análise
+        // IMPORTANTE: Sempre executar análise para garantir que temos as 5 estratégias
         if (!existingConsensus || existingConsensus.total_strategies < 5) {
           console.log('📊 [ANÁLISE] Consenso não encontrado ou incompleto, executando análise...')
+          console.log('📊 [ANÁLISE] Estratégias encontradas:', existingConsensus?.total_strategies || 0, 'de 5')
           await executeAnalysis(newCandle)
         } else {
           console.log('✅ [ANÁLISE] Consenso já existe com', existingConsensus.total_strategies, 'estratégias')
           setConsensus(existingConsensus)
+          // Mesmo assim, buscar previsões para garantir que temos todas
+          fetchPredictions(newCandleId)
         }
       } catch (err) {
         console.error('❌ [ERRO] Ao verificar consenso:', err)
@@ -196,7 +221,7 @@ export default function Home() {
     }
 
     checkAndAnalyze()
-  }, [forexData?.candle?.id]) // Só dispara quando o ID da vela muda
+  }, [forexData?.candle?.id, forexData?.candle?.timestamp]) // Dispara quando ID ou timestamp muda
 
   // Escutar mudanças em tempo real para a vela atual
   useEffect(() => {
@@ -248,15 +273,11 @@ export default function Home() {
     }
   }, [currentCandle?.id])
 
-  // Polling manual a cada minuto para buscar nova vela
+  // Polling manual adicional como backup (o React Query já faz isso, mas garantimos)
   useEffect(() => {
     const interval = setInterval(() => {
-      const now = Date.now()
-      // Só fazer refetch se passou pelo menos 55 segundos desde a última análise
-      if (now - lastAnalysisTimeRef.current > 55000) {
-        console.log('⏰ [POLLING] Verificando nova vela...')
-        refetchForex()
-      }
+      console.log('⏰ [POLLING] Verificando nova vela (backup)...')
+      refetchForex()
     }, 60000) // Verificar a cada minuto
 
     return () => clearInterval(interval)
@@ -270,7 +291,7 @@ export default function Home() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Analisador de Forex</h1>
             <p className="text-gray-400">
-              Análise probabilística com 10 estratégias em tempo real
+              Análise probabilística com 5 estratégias em tempo real
             </p>
           </div>
           <div className="flex gap-2">
